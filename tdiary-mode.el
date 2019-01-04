@@ -77,7 +77,7 @@ Each element looks like (NAME URL) or (NAME URL INDEX-RB UPDATE-RB).")
   "Identifier for diary to be updated.")
 
 (defvar tdiary-diary-url nil
-  "tDiary-mode updates this URL. URL should end with '/'.")
+  "The tDiary-mode updates this URL.  URL should end with '/'.")
 
 (defvar tdiary-index-rb nil
   "Name of the 'index.rb'.")
@@ -91,7 +91,7 @@ Each element looks like (NAME URL) or (NAME URL INDEX-RB UPDATE-RB).")
 (defvar tdiary-coding-system 'utf-8-dos)
 
 (defvar tdiary-title nil
-  "Title of diary")
+  "Title of the diary.")
 
 (defvar tdiary-style-mode 'html-mode
   "Major mode to be used for tDiary editing.")
@@ -106,7 +106,7 @@ Each element looks like (NAME URL) or (NAME URL INDEX-RB UPDATE-RB).")
 It is used in `tdiary-complete-plugin'.")
 
 (defvar tdiary-tempo-tags nil
-  "Tempo tags for tDiary mode")
+  "Tempo tags for tDiary mode.")
 
 (defvar tdiary-completion-finder "\\(\\(<\\|&\\|<%=\\).*\\)\\="
   "Regexp used to find tags to complete.")
@@ -138,7 +138,7 @@ template.  See tempo.info for details.")
   "Cache for username and password.")
 
 (defvar tdiary-hour-offset 0
-  "Offset to current-time.
+  "Offset to current time.
 `tdiary-today' returns (current-time + tdiary-hour-offset).")
 
 (defvar tdiary-text-suffix ".td")
@@ -464,12 +464,15 @@ Otherwise replace all entity references within current buffer."
         (goto-char (point-min))
         (tdiary-replace-entity-refs)
         (set-buffer-modified-p nil)))))))
-
+;;;###autoload
 (defun tdiary-new (&optional select-url)
+  "New Post with option: `SELECT-URL'."
   (interactive "P")
   (tdiary-new-or-replace nil select-url))
 
+;;;###autoload
 (defun tdiary-replace (&optional select-url)
+  "Replace Existing Post with option: `SELECT-URL'."
   (interactive "P")
   (tdiary-new-or-replace t select-url))
 
@@ -577,4 +580,4 @@ The value of `tdiary-style-mode' will be used as actual major mode.
        (setq tdiary-date nil)))))
 
 (provide 'tdiary-mode)
-;;; tdiary-mode.el ends here.
+;;; tdiary-mode.el ends here

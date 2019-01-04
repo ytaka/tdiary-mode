@@ -31,7 +31,7 @@
 ;;
 ;;; Code:
 (require 'pces)
-(require 'ssl)
+(require 'tls)
 
 (defvar http-proxy-server nil "Proxy server for HTTP.")
 (defvar http-proxy-port   nil "Proxy port for HTTP.")
@@ -94,7 +94,7 @@ If error, return a cons cell (ERRCODE . DESCRIPTION)."
       (setq connection
             (as-binary-process
              (if ssl
-                 (open-ssl-stream (concat "*request to " server "*")
+                 (open-tls-stream (concat "*request to " server "*")
                                   buf
                                   (or http-proxy-server server)
                                   (or http-proxy-port port))
@@ -139,4 +139,4 @@ If error, return a cons cell (ERRCODE . DESCRIPTION)."
                      (cons code desc)))))))))
 
 (provide 'http)
-;;; http.el ends here.
+;;; http.el ends here
