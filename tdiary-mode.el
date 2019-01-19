@@ -1,11 +1,11 @@
 ;;; tdiary-mode.el -- Major mode for tDiary editing -*- coding: utf-8 -*-
 ;;
 ;; Copyright (C) 2002 Junichiro Kita
-;;               2017 Youhei SASAKI
+;;               2019 Youhei SASAKI
 ;; Author: Junichiro Kita <kita@kitaj.no-ip.com>
 ;;         Youhei SASAKI <uwabami@gfd-dennou.org>
 ;; Version: 0.0.1
-;; Package-Requires: ((apel "10.8"))
+;; Package-Requires: nil
 ;; Keywords: net
 ;; License: GPL-3.0
 ;;
@@ -66,7 +66,6 @@
 ;;; Variables:
 
 (require 'http)
-(require 'poe)
 (require 'tempo)
 
 (defvar tdiary-diary-list nil
@@ -163,6 +162,30 @@ is expected to accept only one argument(URL).")
   "Init file for tDiary-mode.")
 
 ;;; Code:
+
+;; from apel:
+(defun apel:remassoc (key alist)
+  "Delete by side effect any elements of ALIST whose car is `equal' to KEY.
+The modified ALIST is returned.  If the first member of ALIST has a car
+that is `equal' to KEY, there is no way to remove it by side effect;
+therefore, write `(setq foo (remassoc key foo))' to be sure of changing
+the value of `foo'."
+  (while (and (consp alist)
+              (or (not (consp (car alist)))
+                  (equal (car (car alist)) key)))
+    (setq alist (cdr alist)))
+  (if (consp alist)
+      (let ((prev alist)
+            (tail (cdr alist)))
+        (while (consp tail)
+          (if (and (consp (car alist))
+                   (equal (car (car tail)) key))
+              ;; `(setcdr CELL NEWCDR)' returns NEWCDR.
+              (setq tail (setcdr prev (cdr tail)))
+            (setq prev (cdr prev)
+                  tail (cdr tail))))))
+  alist)
+
 (defun tdiary-tempo-add-tag (def)
   (let* ((plugin (car def))
      (element (cadr def))
@@ -283,7 +306,7 @@ Dangerous!!!"
       (kill-buffer buf))))
 
 (defun tdiary-passwd-cache-clear (url)
-  (setq tdiary-passwd-cache (remassoc url tdiary-passwd-cache)))
+  (setq tdiary-passwd-cache (apel:remassoc url tdiary-passwd-cache)))
 
 (defun tdiary-passwd-cache-save (url user pass)
   (tdiary-passwd-cache-clear url)

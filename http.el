@@ -2,11 +2,11 @@
 ;; -*- mode:emacs-lisp; coding: utf-8 -*-
 ;;
 ;; Copyright (C) 2002 Junichiro Kita
-;;               2017 Youhei SASAKI
+;;               2019 Youhei SASAKI
 ;; Author: Junichiro Kita <kita@kitaj.no-ip.com>
 ;;         Youhei SASAKI <uwabami@gfd-dennou.org>
 ;; Version: 0.0.1
-;; Package-Requires: ((apel "10.8"))
+;; Package-Requires: nil
 ;; Keywords: net
 ;; License: GPL-3.0
 ;;
@@ -30,7 +30,6 @@
 ;; Boston, MA 02111-1307, USA.
 ;;
 ;;; Code:
-(require 'pces)
 (require 'tls)
 
 (defvar http-proxy-server nil "Proxy server for HTTP.")
@@ -49,6 +48,14 @@
   "A list of characters that are _NOT_ reserve in the URL spec.
 This is taken from draft-fielding-url-syntax-02.txt - check your local
 internet drafts directory for a copy.")
+
+;; from apel
+(defmacro apel:as-binary-process (&rest body)
+  ;; Disable ^M to nl translation.
+  `(let (selective-display
+         (coding-system-for-read  'binary)
+         (coding-system-for-write 'binary))
+     ,@body))
 
 ;; derived from url.el
 (defun http-url-hexify-string (str coding)
@@ -76,15 +83,15 @@ DATA is an alist, each element is in the form of (FIELD . DATA).
 
 If no error, return a buffer which contains output from the web server.
 If error, return a cons cell (ERRCODE . DESCRIPTION)."
-  (let (connection server port path buf str len)
+  (let (connection ssl server port path buf str len)
     (string-match "^http\\(s\\)?://\\([^/:]+\\)\\(:\\([0-9]+\\)\\)?\\(/.*$\\)" url)
     (setq ssl (match-string 1 url)
           server (match-string 2 url)
-          port (string-to-int (or (match-string 4 url) (if ssl "443" "80")))
+          port (string-to-number (or (match-string 4 url) (if ssl "443" "80")))
           path (if http-proxy-server url (match-string 5 url)))
     (setq str (mapconcat
-               '(lambda (x)
-                  (concat (car x) "=" (cdr x)))
+               #'(lambda (x)
+                 (concat (car x) "=" (cdr x)))
                data "&"))
     (setq len (length str))
     (save-excursion
@@ -92,7 +99,7 @@ If error, return a cons cell (ERRCODE . DESCRIPTION)."
       (set-buffer buf)
       (erase-buffer)
       (setq connection
-            (as-binary-process
+            (apel:as-binary-process
              (if ssl
                  (open-tls-stream (concat "*request to " server "*")
                                   buf
