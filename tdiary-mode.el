@@ -64,10 +64,10 @@
 ;; ToDo:
 ;; - find plugin definition automatically(needs modification for plugin)
 ;; - bug fix
-
+;;
 ;;; Code:
-
-(require 'tdiary-http)
+(require 'tls)
+(require 'url)
 (require 'tempo)
 
 (defvar tdiary-diary-list nil
@@ -167,6 +167,91 @@ is expected to accept only one argument(URL).")
 ;  "Path to plugins.  It must be a mounted file system.")
 ;(defvar tdiary-plugin-definition-regexp "^[ \t]*def[ \t]+\\(.+?\\)[ \t]*\\(?:$\\|;\\|([ \t]*\\(.*?\\)[ \t]*)\\)")
 
+(defvar tdiary-http-proxy-server nil
+  "Proxy server for HTTP.")
+(defvar tdiary-http-proxy-port   nil
+  "Proxy port for HTTP.")
+
+(defvar tdiary-http-timeout 10
+  "Timeout for HTTP.")
+
+(defmacro apel:as-binary-process (&rest body)
+  `(let (selective-display  ; Disable ^M to nl translation.
+         (coding-system-for-read  'binary)
+         (coding-system-for-write 'binary))
+     ,@body))
+
+(defun tdiary-http-fetch (url method &optional user pass data)
+  "Fetch via HTTP.
+
+URL is a url to be POSTed.
+METHOD is 'get or 'post.
+USER and PASS must be a valid username and password, if required.
+DATA is an alist, each element is in the form of (FIELD . DATA).
+
+If no error, return a buffer which contains output from the web server.
+If error, return a cons cell (ERRCODE . DESCRIPTION)."
+  (let (connection ssl server port path buf str len)
+    (string-match "^http\\(s\\)?://\\([^/:]+\\)\\(:\\([0-9]+\\)\\)?\\(/.*$\\)" url)
+    (setq ssl (match-string 1 url)
+          server (match-string 2 url)
+          port (string-to-number (or (match-string 4 url) (if ssl "443" "80")))
+          path (if tdiary-http-proxy-server url (match-string 5 url)))
+    (setq str (mapconcat
+               #'(lambda (x)
+                   (concat (car x) "=" (cdr x)))
+               data "&"))
+    (setq len (length str))
+    (save-excursion
+      (setq buf (get-buffer-create (concat "*result from " server "*")))
+      (set-buffer buf)
+      (erase-buffer)
+      (setq connection
+            (apel:as-binary-process
+             (if ssl
+                 (open-tls-stream (concat "*request to " server "*")
+                                  buf
+                                  (or tdiary-http-proxy-server server)
+                                  (or tdiary-http-proxy-port port))
+               (open-network-stream (concat "*request to " server "*")
+                                    buf
+                                    (or tdiary-http-proxy-server server)
+                                    (or tdiary-http-proxy-port port)))))
+      (process-send-string
+       connection
+       (concat (if (eq method 'post)
+                   (concat "POST " path)
+                 (concat "GET " path (if (> len 0)
+                                         (concat "?" str))))
+               " HTTP/1.0\r\n"
+               (concat "Host: " server "\r\n")
+               "Connection: close\r\n"
+               "Referer: " url "\r\n"
+               "Content-type: application/x-www-form-urlencoded\r\n"
+               (if (and user pass)
+                   (concat "Authorization: Basic "
+                           (base64-encode-string
+                            (concat user ":" pass))
+                           "\r\n"))
+               (if (eq method 'post)
+                   (concat "Content-length: " (int-to-string len) "\r\n"
+                           "\r\n"
+                           str))
+               "\r\n"))
+      (goto-char (point-min))
+      (while (not (search-forward "</body>" nil t))
+        (unless (accept-process-output connection tdiary-http-timeout)
+          (error "HTTP fetch: Connection timeout!"))
+        (goto-char (point-min)))
+      (goto-char (point-min))
+      (save-excursion
+        (if (re-search-forward "HTTP/1.[01] \\([0-9][0-9][0-9]\\) \\(.*\\)" nil t)
+            (let ((code (match-string 1))
+                  (desc (match-string 2)))
+              (cond ((equal code "200")
+                     buf)
+                    (t
+                     (cons code desc)))))))))
 
 (defun apel:remassoc (key alist)
   "Delete by side effect any elements of ALIST whose car is `equal' to KEY.
@@ -370,16 +455,19 @@ Dangerous!!!"
     (add-to-list 'post-data (cons "day" day))
     (if tdiary-csrf-key (add-to-list 'post-data (cons "csrf_protection_key" tdiary-csrf-key)))
     (or (equal mode "edit")
-    (add-to-list 'post-data
-             (cons "title" (http-url-hexify-string
-                    title
-                    tdiary-coding-system))))
+        (add-to-list 'post-data
+                     (cons "title"
+                           (url-hexify-string
+                            (encode-coding-string title tdiary-coding-system)
+                            url-host-allowed-chars))))
     (add-to-list 'post-data (cons mode mode))
     (and data
-    (add-to-list 'post-data
-             (cons "body"
-               (http-url-hexify-string data tdiary-coding-system))))
-    (setq buf (http-fetch url 'post user pass post-data))
+         (add-to-list 'post-data
+                      (cons "body"
+                            (url-hexify-string
+                             (encode-coding-string data tdiary-coding-system)
+                             url-host-allowed-chars))))
+    (setq buf (tdiary-http-fetch url 'post user pass post-data))
     (if (bufferp buf)
     (save-excursion
       (tdiary-passwd-cache-save url user pass)
