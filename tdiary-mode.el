@@ -1,11 +1,10 @@
-;;; tdiary-mode.el -- Major mode for tDiary editing -*- coding: utf-8 -*-
+;;; tdiary-mode.el --- Major mode for tDiary editing -*- coding: utf-8 -*-
 ;;
 ;; Copyright (C) 2002 Junichiro Kita
 ;;               2019 Youhei SASAKI
 ;; Author: Junichiro Kita <kita@kitaj.no-ip.com>
 ;;         Youhei SASAKI <uwabami@gfd-dennou.org>
-;; Version: 0.0.1
-;; Package-Requires: nil
+;; Version: 0.0.2
 ;; Keywords: net
 ;; License: GPL-3.0
 ;;
