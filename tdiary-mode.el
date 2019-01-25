@@ -5,8 +5,9 @@
 ;; Author: Junichiro Kita <kita@kitaj.no-ip.com>
 ;;         Youhei SASAKI <uwabami@gfd-dennou.org>
 ;; Version: 0.0.2
-;; Keywords: net
+;; Keywords: comm
 ;; License: GPL-2.0
+;; Homepage: https://uwabami.github.com/tdiary-mode/
 ;;
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -31,10 +32,6 @@
 ;;                            ("my 2nd diary" "http://example.com/tdiary2/")))
 ;;  (setq tdiary-text-directory (expand-file-name "~/path-to-saved-diary"))
 ;;  (setq tdiary-browser-function 'browse-url)
-;;  (autoload 'tdiary-mode "tdiary-mode" nil t)
-;;  (autoload 'tdiary-new "tdiary-mode" nil t)
-;;  (autoload 'tdiary-new-diary "tdiary-mode" nil t)
-;;  (autoload 'tdiary-replace "tdiary-mode" nil t)
 ;;  (add-to-list 'auto-mode-alist
 ;;      '("\\.td$" . tdiary-mode))
 ;;
@@ -57,12 +54,12 @@
 ;;
 ;; then, M-x tdiary-passwd-cache-save.  !!DANGEROUS!!
 ;;
-;; see http://kitaj.no-ip.com/rw-cgi.rb?cmd=view;name=tdiary-mode
-;;
-;;
 ;; ToDo:
 ;; - find plugin definition automatically(needs modification for plugin)
 ;; - bug fix
+;; - enable customize-group
+;; - In tdiary-new-or-replace:tdiary-mode.el:587:12:
+;;   Warning: Use ‘with-current-buffer’ rather than save-excursion+set-buffer.
 ;;
 ;;; Code:
 (require 'tls)
@@ -77,7 +74,7 @@ Each element looks like (NAME URL) or (NAME URL INDEX-RB UPDATE-RB).")
   "Identifier for diary to be updated.")
 
 (defvar tdiary-diary-url nil
-  "tDiary-mode updates this URL. URL should end with '/'.")
+  "The tDiary-mode updates this URL.  URL should end with '/'.")
 
 (defvar tdiary-index-rb nil
   "Name of the 'index.rb'.")
@@ -91,7 +88,7 @@ Each element looks like (NAME URL) or (NAME URL INDEX-RB UPDATE-RB).")
 (defvar tdiary-coding-system 'utf-8-dos)
 
 (defvar tdiary-title nil
-  "Title of diary")
+  "Title of diary.")
 
 (defvar tdiary-style-mode 'html-mode
   "Major mode to be used for tDiary editing.")
@@ -106,7 +103,7 @@ Each element looks like (NAME URL) or (NAME URL INDEX-RB UPDATE-RB).")
 It is used in `tdiary-complete-plugin'.")
 
 (defvar tdiary-tempo-tags nil
-  "Tempo tags for tDiary mode")
+  "Tempo tags for tDiary mode.")
 
 (defvar tdiary-completion-finder "\\(\\(<\\|&\\|<%=\\).*\\)\\="
   "Regexp used to find tags to complete.")
@@ -138,7 +135,7 @@ template.  See tempo.info for details.")
   "Cache for username and password.")
 
 (defvar tdiary-hour-offset 0
-  "Offset to current-time.
+  "Offset to `current-time'.
 `tdiary-today' returns (current-time + tdiary-hour-offset).")
 
 (defvar tdiary-text-suffix ".td")
@@ -174,8 +171,9 @@ is expected to accept only one argument(URL).")
 (defvar tdiary-http-timeout 10
   "Timeout for HTTP.")
 
-(defmacro apel:as-binary-process (&rest body)
-  `(let (selective-display  ; Disable ^M to nl translation.
+(defmacro tdiary-as-binary-process (&rest body)
+  "Execute `BODY' as binary.  This macro is imported from apel."
+  `(let (selective-display
          (coding-system-for-read  'binary)
          (coding-system-for-write 'binary))
      ,@body))
@@ -206,7 +204,7 @@ If error, return a cons cell (ERRCODE . DESCRIPTION)."
       (set-buffer buf)
       (erase-buffer)
       (setq connection
-            (apel:as-binary-process
+            (tdiary-as-binary-process
              (if ssl
                  (open-tls-stream (concat "*request to " server "*")
                                   buf
@@ -252,12 +250,12 @@ If error, return a cons cell (ERRCODE . DESCRIPTION)."
                     (t
                      (cons code desc)))))))))
 
-(defun apel:remassoc (key alist)
+(defun tdiary-remassoc (key alist)
   "Delete by side effect any elements of ALIST whose car is `equal' to KEY.
 The modified ALIST is returned.  If the first member of ALIST has a car
 that is `equal' to KEY, there is no way to remove it by side effect;
 therefore, write `(setq foo (remassoc key foo))' to be sure of changing
-the value of `foo'."
+the value of `foo'.  This function imported from apel."
   (while (and (consp alist)
               (or (not (consp (car alist)))
                   (equal (car (car alist)) key)))
@@ -419,22 +417,27 @@ Dangerous!!!"
       (kill-buffer buf))))
 
 (defun tdiary-passwd-cache-clear (url)
-  (setq tdiary-passwd-cache (apel:remassoc url tdiary-passwd-cache)))
+  "Clear cached tdairy password of `URL'."
+  (setq tdiary-passwd-cache (tdiary-remassoc url tdiary-passwd-cache)))
 
 (defun tdiary-passwd-cache-save (url user pass)
+  "Save cached username:`USER', password:`PASS', `URL' of diary."
   (tdiary-passwd-cache-clear url)
   (add-to-list 'tdiary-passwd-cache
            (cons url (cons user (base64-encode-string pass)))))
 
 (defun tdiary-passwd-cache-read-username (url)
+  "Read cached username of the `URL'."
   (cadr (assoc url tdiary-passwd-cache)))
 
 (defun tdiary-passwd-cache-read-password (url)
+  "Read cached password of the `URL'."
   (let ((password (cddr (assoc url tdiary-passwd-cache))))
     (and password
      (base64-decode-string password))))
 
 (defun tdiary-post (mode date data)
+  "Post `DATA' as diary of `DATE' with `MODE'.  `MODE' is append or replace."
   (let ((url (concat tdiary-diary-url tdiary-update-rb))
     buf title user pass year month day post-data)
     (when (not (equal mode "edit"))
@@ -475,9 +478,10 @@ Dangerous!!!"
       (goto-char (point-min))
       buf)
       (tdiary-passwd-cache-clear url)
-      (error "tDiary POST: %s - %s" (car buf) (cdr buf)))))
+      (error "The tDiary POST: %s - %s" (car buf) (cdr buf)))))
 
 (defun tdiary-post-text ()
+  "Post tDiary data."
   (let* ((dirname (expand-file-name tdiary-diary-name
                     (or tdiary-text-directory
                     (expand-file-name "~/"))))
@@ -518,6 +522,7 @@ Dangerous!!!"
             "?date=" tdiary-date))))
 
 (defun tdiary-do-replace-entity-ref (from to &optional str)
+  "Replace Diary data from:`FROM' to:'TO' with string:`STR'."
   (save-excursion
     (goto-char (point-min))
     (if (stringp str)
@@ -548,17 +553,15 @@ Otherwise replace all entity references within current buffer."
 
 
 (defun tdiary-obsolete-check ()
-  ;; setting tdiary-diary-url in tdiary-init-file is obsolete.
+  "Setting tdiary-diary-url in tdiary-init-file is obsolete."
   (when tdiary-diary-url
     (message "tdiary-diary-url is OBSOLETE.  Use tdiary-diary-list instead of tdiary-diary-url.")
     (sit-for 5)))
 
-;(defun tdiary-setup-diary-url (select-url)
-;  (interactive)
-;  (if (interactive-p)
-;      (setq select-url t))
+;;;###autoload
 (defun tdiary-setup-diary-url (select-url)
-  ;; setting tdiary-diary-url in tdiary-init-file is obsolete.
+  "Setting tdiary url:`SELECT-URL'.
+The tdiary-diary-url in tdiary-init-file is obsolete."
   (tdiary-obsolete-check)
   (unless tdiary-diary-url
     (let* ((selected (car tdiary-diary-list))
@@ -574,6 +577,7 @@ Otherwise replace all entity references within current buffer."
          tdiary-update-rb (nth 3 selected))))))
 
 (defun tdiary-new-or-replace (replacep select-url)
+  "Check tdiary of URL:`SELECT-URL' as `REPLACEP'."
   (let (buf)
     (setq buf (generate-new-buffer "*tdiary tmp*"))
     (switch-to-buffer buf)
@@ -604,11 +608,15 @@ Otherwise replace all entity references within current buffer."
         (tdiary-replace-entity-refs)
         (set-buffer-modified-p nil)))))))
 
+;;;###autoload
 (defun tdiary-new (&optional select-url)
+  "Create New diary of URL:`SELECT-URL'."
   (interactive "P")
   (tdiary-new-or-replace nil select-url))
 
+;;;###autoload
 (defun tdiary-replace (&optional select-url)
+  "Replace New diary of URL:`SELECT-URL'."
   (interactive "P")
   (tdiary-new-or-replace t select-url))
 
@@ -630,6 +638,7 @@ If you want to set up your own key bindings, use `tdiary-mode-hook'.")
       (load init-file t t))))
 
 (defun tdiary-make-temp-file-name ()
+  "Create temporary file for diary."
   (let ((tmpdir (expand-file-name tdiary-diary-name
                   (expand-file-name (user-login-name)
                             temporary-file-directory))))
@@ -639,17 +648,17 @@ If you want to set up your own key bindings, use `tdiary-mode-hook'.")
     (expand-file-name tdiary-date tmpdir)))
 
 (defun tdiary-html-mode-init ()
-  "Initialize tDiary for default style"
+  "Initialize tDiary for default style."
   (tdiary-tempo-define (append tdiary-plugin-initial-definition
                    tdiary-plugin-definition))
   (tempo-use-tag-list 'tdiary-tempo-tags tdiary-completion-finder))
 
 (defun tdiary-rd-mode-init ()
-  "Initialize tDiary for RD style"
+  "Initialize tDiary for RD style."
   )
 
 (defun tdiary-mode ()
-  "tDiary editing mode.
+  "The tDiary editing mode.
 The value of `tdiary-style-mode' will be used as actual major mode.
 
 \\{tdiary-mode-map}"
@@ -704,6 +713,7 @@ The value of `tdiary-style-mode' will be used as actual major mode.
   (run-hooks 'tdiary-mode-hook))
 
 (defun tdiary-mode-toggle (&optional arg)
+  "Toggle tdiary-mode via `ARG'."
   (interactive "P")
   (let ((in-tdiary (and (boundp 'tdiary-date) tdiary-date)))
     (cond ((not arg)
