@@ -6,7 +6,7 @@
 ;;         Youhei SASAKI <uwabami@gfd-dennou.org>
 ;; Version: 0.0.2
 ;; Keywords: comm
-;; License: GPL-2.0
+;; License: GPL-2.0+
 ;; Homepage: https://uwabami.github.com/tdiary-mode/
 ;;
 ;; This program is free software; you can redistribute it and/or
@@ -63,7 +63,6 @@
 ;;
 ;;; Code:
 (require 'tls)
-(require 'url)
 (require 'tempo)
 
 (defvar tdiary-diary-list nil
@@ -177,6 +176,32 @@ is expected to accept only one argument(URL).")
          (coding-system-for-read  'binary)
          (coding-system-for-write 'binary))
      ,@body))
+
+;; derived from url.el
+(defconst tdiary-url-unreserved-chars
+  '(
+    ?a ?b ?c ?d ?e ?f ?g ?h ?i ?j ?k ?l ?m ?n ?o ?p ?q ?r ?s ?t ?u ?v ?w ?x ?y ?z
+       ?A ?B ?C ?D ?E ?F ?G ?H ?I ?J ?K ?L ?M ?N ?O ?P ?Q ?R ?S ?T ?U ?V ?W ?X ?Y ?Z
+       ?0 ?1 ?2 ?3 ?4 ?5 ?6 ?7 ?8 ?9
+       ?$ ?- ?_ ?. ?! ?~ ?* ?' ?\( ?\) ?,)
+  "A list of characters that are _NOT_ reserve in the URL spec.
+This is taken from draft-fielding-url-syntax-02.txt - check your local
+internet drafts directory for a copy.")
+
+;; derived from url.el
+(defun tdiary-url-hexify-string (str coding)
+  "Escape characters in a string.
+At first, encode STR using CODING, then url-hexify."
+  (mapconcat
+   (function
+    (lambda (char)
+      (if (not (memq char tdiary-url-unreserved-chars))
+          (if (< char 16)
+              (upcase (format "%%0%x" char))
+            (upcase (format "%%%x" char)))
+        (char-to-string char))))
+   (encode-coding-string str coding) ""))
+
 
 (defun tdiary-http-fetch (url method &optional user pass data)
   "Fetch via HTTP.
@@ -459,16 +484,16 @@ Dangerous!!!"
     (or (equal mode "edit")
         (add-to-list 'post-data
                      (cons "title"
-                           (url-hexify-string
-                            (encode-coding-string title tdiary-coding-system)
-                            url-host-allowed-chars))))
+                           (tdiary-url-hexify-string
+                            title
+                            tdiary-coding-system))))
     (add-to-list 'post-data (cons mode mode))
     (and data
          (add-to-list 'post-data
                       (cons "body"
-                            (url-hexify-string
-                             (encode-coding-string data tdiary-coding-system)
-                             url-host-allowed-chars))))
+                            (tdiary-url-hexify-string
+                             data
+                             tdiary-coding-system))))
     (setq buf (tdiary-http-fetch url 'post user pass post-data))
     (if (bufferp buf)
     (save-excursion
