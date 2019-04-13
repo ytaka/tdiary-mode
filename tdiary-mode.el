@@ -260,6 +260,7 @@ If error, return a cons cell (ERRCODE . DESCRIPTION)."
                            "\r\n"
                            str))
                "\r\n"))
+      (accept-process-output connection tdiary-http-timeout)
       (goto-char (point-min))
       (while (not (search-forward "</body>" nil t))
         (unless (accept-process-output connection tdiary-http-timeout)
